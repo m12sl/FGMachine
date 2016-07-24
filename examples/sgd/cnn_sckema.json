@@ -1,0 +1,18 @@
+{
+  "nb_epoch": {
+    "type": "int",
+    "default": 12
+  },
+  "nb_filters": {
+    "type": "int",
+    "default": 32
+  },
+  "nb_pool": {
+    "type": "int",
+    "default": 2
+  },
+  "nb_conv": {
+    "type": "int",
+    "default": 3
+  }
+}
