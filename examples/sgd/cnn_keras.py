@@ -20,12 +20,11 @@ parser.add_argument('--nb_conv', dest='nb_conv', type=int, default=3)
 parser.add_argument('--nb_epoch', dest='nb_epoch', type=int, default=12)
 
 parser.add_argument('--_id', dest='_id', default=None)
+params = vars(parser.parse_args())
 
 batch_size = 128
 nb_classes = 10
 nb_epoch = params['nb_epoch']
-
-params = vars(parser.parse_args())
 
 # input image dimensions
 img_rows, img_cols = 28, 28
