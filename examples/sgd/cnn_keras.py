@@ -12,6 +12,9 @@ from keras.utils import np_utils
 import os
 import json
 import argparse
+import timeit
+
+start_time = timeit.default_timer()
 
 parser = argparse.ArgumentParser(description='Calculate the model for CNN keras')
 parser.add_argument('--nb_filters', dest='nb_filters', type=int, default=32)
@@ -79,10 +82,12 @@ model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
 score = model.evaluate(X_test, Y_test, verbose=0)
 #print('Test score:', score[0])
 #print('Test accuracy:', score[1])
+end_time = timeit.default_timer()
+cost_time = end_time - start_time
 
 # Save result
 _id = params['_id']
 if not os.path.exists(_id):
     os.makedirs(_id)
 with open(os.path.join(_id, 'value.json'), 'w') as outfile:
-    json.dump({'_scores': {'score': score[0],'accuracy':score[1]}}, outfile)
+    json.dump({'_scores': {'score': score[0],'accuracy':score[1], 'time':cost_time}}, outfile)
