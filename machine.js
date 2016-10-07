@@ -144,13 +144,14 @@ var getCapacity = function(projId) {
 app.options("/projects", cors({origin: process.env.FGLAB_URL})); // Enable pre-flight request for PUT
 app.put("/projects", jsonParser, cors({origin: process.env.FGLAB_URL}), (req, res) => {
   var id = req.body.project_id;
+  var op = req.body.options;
   // Insert project implementation template if new
   if (!projects[id]) {
     projects[id] = {
       cwd: ".",
       command: "<command>",
       args: ["<arg>"],
-      options: "<options>",
+      options: op,
       capacity: 1,
       results: "."
     };
