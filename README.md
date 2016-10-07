@@ -4,6 +4,7 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/kaixhin/fgmachine.svg)](https://hub.docker.com/r/kaixhin/fgmachine/)
 [![Docker Stars](https://img.shields.io/docker/stars/kaixhin/fgmachine.svg)](https://hub.docker.com/r/kaixhin/fgmachine/)
+[![Gitter](https://img.shields.io/gitter/room/nwjs/nw.js.svg)](https://gitter.im/Kaixhin/FGLab?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 # ![FGMachine](public/images/fgmachine-logo.png)
 
@@ -47,7 +48,15 @@ Start a [FGLab container](https://hub.docker.com/r/kaixhin/fglab/) and link it t
 sudo docker run -d --name fgmachine -h $(hostname) -v /var/run/docker.sock:/var/run/docker.sock -e FGLAB_URL=<FGLab URL> -e FGMACHINE_URL=<FGMachine URL> -p 5081:5081 kaixhin/fgmachine
 ```
 
-The `FGLab URL` will be the address of the host running FGLab, including port 5080 - note that `localhost` will not work but the local network IP/hostname should. The `FGMachine URL` will be the address of the current host (as accessible by FGLab), including port 5081. Docker and its socket are passed to allow FGMachine to launch Docker containers itself.
+The `FGLab URL` will be the address of the host running FGLab, including port 5080 - note that `localhost` will not work but the local network IP/hostname should. The `FGMachine URL` will be the address of the current host (as accessible by FGLab), including port 5081. Docker's socket is passed to allow FGMachine to launch Docker containers itself. Note that as these are *sibling* containers, volume mounts (`-v`) are relative to the host, not the FGMachine container.
+
+To launch [NVIDIA Docker](https://github.com/NVIDIA/nvidia-docker) containers, use the following:
+
+```sh
+sudo docker run -d --name fgmachine -h $(hostname) -v /var/run/docker.sock:/var/run/docker.sock --net=host `curl -s localhost:3476/docker/cli` -e FGLAB_URL=<FGLab URL> -e FGMACHINE_URL=<FGMachine URL> -p 5081:5081 kaixhin/fgmachine
+```
+
+Note that `--net=host` is passed to allow access to the NVIDIA Docker API. When launching a sibling container, you will need to run `` `curl -s localhost:3476/docker/cli` `` and manually add the arguments to the project implementation in the container, with `docker` as the command (do not use `nvidia-docker`).
 
 ## Overview
 
@@ -62,7 +71,7 @@ After a project has been created on FGLab, a corresponding *project implementati
   "args": "<first command line options (e.g. train)>",
   "options": "<command line options style for options (e.g. double-dash)>",
   "capacity": "<machine capacity needed (as a fraction) (e.g. 0.5)>",
-  "results": "<results directory (without experiment ID) (e.g. results)>"
+  "results": "<absolute path to results directory (without experiment ID) (e.g. results)>"
 }
 ```
 
@@ -80,6 +89,21 @@ After a project has been created on FGLab, a corresponding *project implementati
 If you receive a "No machine capacity available" error message when submitting a new experiment, which can occur erroneously (for example, if experiments crash), then you can reset a machine's capacity on the machine's page in FGLab.
 
 FGMachine automatically reloads the `projects.json` file when it is changed.
+
+#### GPU capacity support
+
+In order to handle projects, which require GPUs to perform a task, you need to add two parameters for each project in `projects.json` file:
+
+```json
+{
+  "gpu_capacity": "<gpu capacity needed (as a fraction of one GPU capacity, e.g. 0.5)>",
+  "gpu_command": "<option to pass to script to identify card number, including command line option style (e.g. -gpu)>",
+}
+```
+
+Note that `gpu_capacity` represents (the inverse of) instances of the program the FGMachine host system can run on one GPU; for example a machine with 4 GPUs will be able to run 8 instances of the program with `capacity` 0.1 and `gpu_capacity` 0.5. However, if the `capacity` was 0.25 in the previous example, the machine would only be able to run 4 instances of the program.
+
+`gpu_capacity` automatically assigns a GPU for experiments, which makes it easier to run batch experiments. Note that like `nvidia-smi`, GPU IDs passed via `gpu-command` are **0-indexed**. For manual control, it is recommended to use a GPU flag as part of the experiment hyperparameters in the project schema.
 
 ### Experiments
 
