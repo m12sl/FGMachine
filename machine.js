@@ -19,11 +19,15 @@ var rp = require("request-promise");
 var chokidar = require("chokidar");
 var rimraf = require("rimraf");
 var WebSocketServer = require("ws").Server;
+var multer = require("multer");
+var util  = require('util');
+var spawn = require('child_process').spawn;
 
 /* App instantiation */
 var app = express();
 var jsonParser = bodyParser.json({limit: "50mb"}); // Parses application/json
 app.use(morgan("common")); // Log requests
+var upload = multer();
 
 // Variables
 var specs = {};
@@ -170,17 +174,21 @@ var getCapacity = function(projId) {
 // Updates projects.json with new project ID
 app.options("/projects", cors({origin: process.env.FGLAB_URL})); // Enable pre-flight request for PUT
 app.put("/projects", jsonParser, cors({origin: process.env.FGLAB_URL}), (req, res) => {
+  console.log(" in side /projects ");
   var id = req.body.project_id;
-  var op = req.body.options;
+  var command = req.body.command;
+  var args = req.body.args;
+  var options = req.body.options;
+  var capacity = req.body.capacity;
   // Insert project implementation template if new
   if (!projects[id]) {
     projects[id] = {
-      cwd: ".",
-      command: "<command>",
-      args: ["<arg>"],
-      options: op,
-      capacity: 1,
-      results: "."
+      cwd: "/root/FGMachine/cloudml_optimisation/"+id,
+      command: command,
+      args: args,
+      options: options,
+      capacity: capacity,
+      results: "/root/FGMachine/cloudml_optimisation/"+id
     };
     fs.writeFile("projects.json", JSON.stringify(projects, null, "\t"));
     res.send({msg: "Project ID " + id + " template added - please adjust on " + specs.hostname});
@@ -197,6 +205,40 @@ app.get("/projects/:id/capacity", (req, res) => {
   } else {
     res.send({capacity: capacity, address: specs.address, _id: specs._id});
   }
+});
+
+// receive file 
+app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), (req, res) => {
+
+  var proId = req.params.id;
+  var runFlag = req.params.runFlag;
+  console.log("flag: "+ runFlag);
+  var dir = "/root/FGMachine/cloudml_optimisation/"+proId+"/";
+
+  //Check directory or create
+  if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
+  }
+  //get file name
+  var filename = dir+req.file.originalname;
+  //wirte to file
+  fs.writeFile(filename, req.file.buffer, (err) => {
+    if (err) throw err;
+    console.log("Receive file from server; Project_id: "+req.params.id);
+  });
+
+  var message = "Receive static file successfully ";
+
+  if(runFlag=="1"){  
+    var bash = spawn('bash', [filename]);
+    bash.stdout.on('data', function (data) {    // register one or more handlers
+      message = data;
+      console.log('===========  stdout: ============' );
+      console.log(data);
+    });
+  }
+  res.send(message);
+
 });
 
 // Starts experiment
