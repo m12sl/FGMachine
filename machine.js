@@ -1,5 +1,12 @@
 /* Modules */
 require("./env"); // Load configuration variables
+
+var cfg = {
+  ssl: ( process.env.SSL_KEY && process.env.SSL_CERT),
+  ssl_key: process.env.SSL_KEY,
+  ssl_cert: process.env.SSL_CERT
+}
+
 var os = require("os");
 var path = require("path");
 var fs = require("mz/fs");
@@ -7,7 +14,9 @@ var spawn= require("child_process").spawn;
 var spawnSync = require("child_process").spawnSync;
 var EventEmitter = require("events").EventEmitter;
 var mediator = new EventEmitter();
-var http = require("http");
+
+var httpServ = ( cfg.ssl ) ? require('https') : require('http');
+
 var url = require("url");
 var bytes = require("bytes");
 var express = require("express");
@@ -33,6 +42,8 @@ var upload = multer();
 var specs = {};
 var projects = {};
 var experiments = {};
+
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 /* FGLab check */
 if (!process.env.FGLAB_URL) {
@@ -82,7 +93,13 @@ fs.readFile("specs.json", "utf-8")
   }
 
   // Register details
-  rp({uri: process.env.FGLAB_URL + "/api/v1/machines", method: "POST", json: specs, gzip: true})
+  rp({uri: process.env.FGLAB_URL + "/api/v1/machines", method: "POST", json: specs, gzip: true,
+    rejectUnauthorized: false,
+    requestCert: false,
+    agent: false,
+    strictSSL: false,
+    //proxy:"http://proxy.com:8080",
+    tunnel: false })
   .then((body) => {
     console.log("Registered with FGLab successfully");
     // Save ID and specs
@@ -96,6 +113,7 @@ fs.readFile("specs.json", "utf-8")
     });
   })
   .catch((err) => {
+    console.log("Failed to register with FGLab @ " + process.env.FGLAB_URL);
     console.log(err);
   });
 })
@@ -195,6 +213,10 @@ app.put("/projects", jsonParser, cors({origin: process.env.FGLAB_URL}), (req, re
   } else {
     res.send({msg: "Project ID " + id + " already exists"});
   }
+});
+
+app.get("/test", (req, res) => {
+  res.send({message: "Hello"});
 });
 
 // Checks capacity
@@ -420,7 +442,17 @@ app.post("/capacity/reset", (req, res) => {
 
 
 /* HTTP Server */
-var server = http.createServer(app); // Create HTTP server
+var server = null;
+if ( cfg.ssl ) {
+  var server = httpServ.createServer(
+    { key: fs.readFileSync( cfg.ssl_key ),cert: fs.readFileSync( cfg.ssl_cert ) },
+    app); // Create HTTPS server
+    console.log("CREATED HTTPS");
+} else {
+  console.log("CREATED HTTP");
+  server = httpServ.createServer(app); // Create HTTP server
+}
+
 if (!process.env.FGMACHINE_URL) {
   console.log("Error: No FGMachine address specified");
   process.exit(1);
@@ -437,7 +469,9 @@ if (!process.env.FGMACHINE_URL) {
 // Add websocket server
 var wss = new WebSocketServer({server: server});
 // Catches errors to prevent FGMachine crashing if browser disconnect undetected
-var wsErrHandler = function() {};
+var wsErrHandler = function() {
+  console.log("ERROR");
+};
 
 // Call on connection from new client
 wss.on("connection", (ws) => {
