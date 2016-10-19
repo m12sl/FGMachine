@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y vim curl lxc
 RUN curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
 RUN apt-get install -y nodejs build-essential
 
-
 # Clone FGMachine repo for RAM example
 RUN cd /root && git clone https://github.com/Leo-Gao/FGMachine.git && cd FGMachine && \
   npm install
@@ -24,7 +23,7 @@ RUN openssl req -x509 -newkey rsa:4096 -keyout $SSL_KEY -out $SSL_CERT -days 7 -
 # Expose port
 EXPOSE 443
 EXPOSE 8080
-EXPOSE 5081
+#EXPOSE 5081
 
 # Set working directory
 WORKDIR /root/FGMachine
