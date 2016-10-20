@@ -234,7 +234,6 @@ app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), (req, res) =
 
   var proId = req.params.id;
   var runFlag = req.params.runFlag;
-  console.log("flag: "+ runFlag);
   var dir = "/root/FGMachine/cloudml_optimisation/"+proId+"/";
 
   //Check directory or create
@@ -246,20 +245,24 @@ app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), (req, res) =
   //wirte to file
   fs.writeFile(filename, req.file.buffer, (err) => {
     if (err) throw err;
-    console.log("Receive file from server; Project_id: "+req.params.id);
   });
 
-  var message = "Receive static file successfully ";
+  var message = "";
 
   if(runFlag=="1"){  
     var bash = spawn('bash', [filename]);
     bash.stdout.on('data', function (data) {    // register one or more handlers
-      message = data;
+      message = " Run  file successfully : " + process.env.FGMACHINE_URL;
+      res.send(message);
+      
       console.log('===========  stdout: ============' );
-      console.log(data);
+      console.log(data.toString());
     });
+  }else{
+    message = " Receive  file successfully : " + process.env.FGMACHINE_URL;
+    res.send(message);
   }
-  res.send(message);
+  
 
 });
 
