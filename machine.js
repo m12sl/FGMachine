@@ -187,12 +187,17 @@ var getCapacity = function(projId) {
   return capacity;
 };
 
+cors_config = {origin: process.env.FGLAB_URL}
+
+if (process.env.FGLABPUBLIC_URL) {
+  cors_config = {origin: [process.env.FGLAB_URL, process.env.FGLABPUBLIC_URL]}
+}
 
 /* Routes */
 // Updates projects.json with new project ID
-app.options("/projects", cors({origin: process.env.FGLAB_URL})); // Enable pre-flight request for PUT
-app.put("/projects", jsonParser, cors({origin: process.env.FGLAB_URL}), (req, res) => {
-  console.log(" in side /projects ");
+
+app.options("/projects", cors(cors_config)); // Enable pre-flight request for PUT
+app.put("/projects", jsonParser, cors(cors_config), (req, res) => {
   var id = req.body.project_id;
   var command = req.body.command;
   var args = req.body.args;
@@ -495,6 +500,7 @@ wss.on("connection", (ws) => {
       mediator.on("experiments:" + expId + ":stdout", sendStdout);
       mediator.on("experiments:" + expId + ":stderr", sendStderr);
     }
+    console.log("Message: " + message)
   });
 
   // Remove listeners
