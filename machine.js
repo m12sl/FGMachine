@@ -45,6 +45,12 @@ var experiments = {};
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
+var withDefaultOptions = function(options) {
+  var result = { rejectUnauthorized: false, requestCert: false, agent: false, strictSSL: false, tunnel: false }
+  for (var attrname in options) { result[attrname] = options[attrname]; }
+  return result;
+};
+
 /* FGLab check */
 if (!process.env.FGLAB_URL) {
   console.log("Error: No FGLab address specified");
@@ -93,13 +99,8 @@ fs.readFile("specs.json", "utf-8")
   }
 
   // Register details
-  rp({uri: process.env.FGLAB_URL + "/api/v1/machines", method: "POST", json: specs, gzip: true,
-    rejectUnauthorized: false,
-    requestCert: false,
-    agent: false,
-    strictSSL: false,
-    //proxy:"http://proxy.com:8080",
-    tunnel: false })
+
+  rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/machines", method: "POST", json: specs, gzip: true}))
   .then((body) => {
     console.log("Registered with FGLab successfully");
     // Save ID and specs
@@ -107,7 +108,7 @@ fs.readFile("specs.json", "utf-8")
     // Reload specs with _id (prior to adding projects)
     specs = body;
     // Register projects
-    rp({uri: process.env.FGLAB_URL + "/api/v1/machines/" + specs._id + "/projects", method: "POST", json: {projects: projects}, gzip: true})
+    rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/machines/" + specs._id + "/projects", method: "POST", json: {projects: projects}, gzip: true}))
     .then(() => {
       console.log("Projects registered with FGLab successfully");
     });
@@ -133,7 +134,7 @@ fs.readFile("projects.json", "utf-8")
   console.log("Loaded projects");
   projects = JSON.parse(proj || "{}");
   // Register projects
-  rp({uri: process.env.FGLAB_URL + "/api/v1/machines/" + specs._id + "/projects", method: "POST", json: {projects: projects}, gzip: true})
+  rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/machines/" + specs._id + "/projects", method: "POST", json: {projects: projects}, gzip: true}))
   .then(() => {
     console.log("Projects registered with FGLab successfully");
   })
@@ -150,7 +151,7 @@ chokidar.watch("projects.json").on("change", () => {
     console.log("Reloaded projects");
     projects = JSON.parse(proj || "{}");
     // Register projects
-    rp({uri: process.env.FGLAB_URL + "/api/v1/machines/" + specs._id + "/projects", method: "POST", json: {projects: projects}, gzip: true})
+    rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/machines/" + specs._id + "/projects", method: "POST", json: {projects: projects}, gzip: true}))
     .then(() => {
       console.log("Projects registered with FGLab successfully");
     })
@@ -187,17 +188,16 @@ var getCapacity = function(projId) {
   return capacity;
 };
 
-cors_config = {origin: process.env.FGLAB_URL}
-
-if (process.env.FGLABPUBLIC_URL) {
-  cors_config = {origin: [process.env.FGLAB_URL, process.env.FGLABPUBLIC_URL]}
-}
+cors_config = {origin: "*"}
 
 /* Routes */
 // Updates projects.json with new project ID
 
 app.options("/projects", cors(cors_config)); // Enable pre-flight request for PUT
+
+
 app.put("/projects", jsonParser, cors(cors_config), (req, res) => {
+//app.put("/projects", function(req, res, next) {
   var id = req.body.project_id;
   var command = req.body.command;
   var args = req.body.args;
@@ -220,12 +220,12 @@ app.put("/projects", jsonParser, cors(cors_config), (req, res) => {
   }
 });
 
-app.get("/test", (req, res) => {
+app.get("/test", cors(cors_config), (req, res) => {
   res.send({message: "Hello"});
 });
 
 // Checks capacity
-app.get("/projects/:id/capacity", (req, res) => {
+app.get("/projects/:id/capacity", cors(cors_config), (req, res) => {
   var capacity = getCapacity(req.params.id);
   if (capacity === 0) {
     res.status(501).send({error: "No capacity available"});
@@ -235,7 +235,7 @@ app.get("/projects/:id/capacity", (req, res) => {
 });
 
 // receive file 
-app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), (req, res) => {
+app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), cors(cors_config), (req, res) => {
 
   var proId = req.params.id;
   var runFlag = req.params.runFlag;
@@ -272,7 +272,7 @@ app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), (req, res) =
 });
 
 // Starts experiment
-app.post("/projects/:id", jsonParser, (req, res) => {
+app.post("/projects/:id", jsonParser, cors(cors_config), (req, res) => {
   // Check if capacity still available
   if (getCapacity(req.params.id) === 0) {
     return res.status(501).send({error: "No capacity available"});
@@ -314,7 +314,7 @@ app.post("/projects/:id", jsonParser, (req, res) => {
   var filesP = [];
   // Results-sending function for JSON
   var sendJSONResults = function(results) {
-    return rp({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId, method: "PUT", json: JSON.parse(results), gzip: true});
+    return rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId, method: "PUT", json: JSON.parse(results), gzip: true}));
   };
   // Results-sending function for other files
   var sendFileResults = function(filename) {
@@ -322,7 +322,7 @@ app.post("/projects/:id", jsonParser, (req, res) => {
     var formData = {_files: []};
     // Add file
     formData._files.push(fs.createReadStream(filename));
-    return rp({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId + "/files", method: "PUT", formData: formData, gzip: true});
+    return rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId + "/files", method: "PUT", formData: formData, gzip: true}));
   };
 
   // Watch experiments folder
@@ -369,7 +369,7 @@ app.post("/projects/:id", jsonParser, (req, res) => {
   // Catch spawning errors
   .on("error", () => {
     // Notify of failure
-    rp({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId, method: "PUT", json: {_status: "fail"}, gzip: true});
+    rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId, method: "PUT", json: {_status: "fail"}, gzip: true}));
     // Log error
     console.log("Error: Experiment could not start - please check projects.json");
   });
@@ -398,8 +398,8 @@ app.post("/projects/:id", jsonParser, (req, res) => {
 
     // Send status
     var status = (exitCode === 0) ? "success" : "fail";
-    rp({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId, method: "PUT", json: {_status: status}, gzip: true});
-    rp({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId + "/finished", method: "PUT", data: null}); // Set finished
+    rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId, method: "PUT", json: {_status: status}, gzip: true}));
+    rp(withDefaultOptions({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId + "/finished", method: "PUT", data: null})); // Set finished
 
     // Finish watching for files after 10s
     setTimeout(() => {
@@ -430,7 +430,7 @@ app.post("/projects/:id", jsonParser, (req, res) => {
 });
 
 // Kills experiment
-app.post("/experiments/:id/kill", (req, res) => {
+app.post("/experiments/:id/kill", cors(cors_config), (req, res) => {
   if (experiments[req.params.id]) {
     experiments[req.params.id].kill();
   }
@@ -439,7 +439,7 @@ app.post("/experiments/:id/kill", (req, res) => {
 });
 
 // Resets capacity to 1
-app.post("/capacity/reset", (req, res) => {
+app.post("/capacity/reset", cors(cors_config), (req, res) => {
   maxCapacity = 1;
   for (var i = 0; i < specs.gpus.length; i++) {
     GPUsCapacity[i] = 1;
