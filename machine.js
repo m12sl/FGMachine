@@ -188,7 +188,12 @@ var getCapacity = function(projId) {
   return capacity;
 };
 
-cors_config = {origin: "*"}
+if (process.env.FGLAB_URL) {
+  cors_config = {origin: [process.env.FGLABPUBLIC_URL,process.env.FGLAB_URL]}
+}else{
+  cors_config = {origin: ["*"]}
+}
+
 
 /* Routes */
 // Updates projects.json with new project ID
