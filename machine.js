@@ -50,6 +50,11 @@ var withDefaultOptions = function(options) {
   for (var attrname in options) { result[attrname] = options[attrname]; }
   return result;
 };
+var count_obj = function(obj){
+    var i = 0;
+    for(var key in obj){ ++i; }
+    return i;
+};
 
 /* FGLab check */
 if (!process.env.FGLAB_URL) {
@@ -381,8 +386,10 @@ app.post("/projects/:id", jsonParser, cors(cors_config), (req, res) => {
   
   maxCapacity = Math.max(maxCapacity - project.capacity, 0); // Reduce capacity of machine
   rp({uri: process.env.FGLAB_URL + "/api/v1/experiments/" + experimentId + "/started", method: "PUT", data: null}); // Set started
+
   // Save experiment
   experiments[experimentId] = experiment;
+  mediator.emit("machine:" + specs.hostname + ":count_experiments");
 
   // Log stdout
   experiment.stdout.on("data", (data) => {
@@ -429,7 +436,9 @@ app.post("/projects/:id", jsonParser, cors(cors_config), (req, res) => {
     }, 10000);
 
     // Delete experiment
-    delete experiments[experimentId];
+    delete experiments[experimentId];    
+    mediator.emit("machine:" + specs.hostname + ":count_experiments");
+
   });
   res.send(req.body);
 });
@@ -483,7 +492,7 @@ if (!process.env.FGMACHINE_URL) {
 var wss = new WebSocketServer({server: server});
 // Catches errors to prevent FGMachine crashing if browser disconnect undetected
 var wsErrHandler = function() {
-  console.log("ERROR");
+  //console.log("Send Message.");
 };
 
 // Call on connection from new client
@@ -495,15 +504,27 @@ wss.on("connection", (ws) => {
   var sendStderr = function(data) {
     ws.send(JSON.stringify({stderr: data}), wsErrHandler);
   };
-
+  var sendCountExpe = function() {
+    var count_experiments = count_obj(experiments);
+    ws.send(JSON.stringify({count_experiments: count_experiments}), wsErrHandler);  
+  };
+  
   // Check subscription for logs
   var expId;
+  var macId;
+  var tout; // define timeout to clear setinterval
   ws.on("message", (message) => {
     if (message.indexOf("experiments") === 0) {
       expId = message.split(":")[1];
       // Send stdout and stderr
       mediator.on("experiments:" + expId + ":stdout", sendStdout);
       mediator.on("experiments:" + expId + ":stderr", sendStderr);
+    }
+    // Check status of machine whether busy 
+    if(message.indexOf("machineStatus")==0){
+      macId = message.split(":")[1];
+      mediator.on("machine:" + macId + ":count_experiments", sendCountExpe);
+      tout = setInterval(sendCountExpe, 5000);
     }
     console.log("Message: " + message)
   });
@@ -512,5 +533,7 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     mediator.removeListener("experiments:" + expId + ":stdout", sendStdout);
     mediator.removeListener("experiments:" + expId + ":stdout", sendStderr);
+    mediator.removeListener("machine:" + macId + ":count_experiments", sendCountExpe);
+    clearInterval(tout);
   });
 });
