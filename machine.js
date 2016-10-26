@@ -67,6 +67,7 @@ fs.readFile("specs.json", "utf-8")
   // Otherwise create specs
   specs = {
     address: process.env.FGMACHINE_URL,
+    local_address: process.env.FGMACHINE_LOCAL_URL,
     //hostname: os.hostname()+':'+Math.floor(Math.random() * 101),
     hostname: os.hostname(),
     os: {
