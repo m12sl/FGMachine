@@ -1,0 +1,14 @@
+version: '2'
+
+services:
+  machine:
+    build: ./docker
+    network_mode: 'host'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "5081:443"
+    environment:
+      - FGLAB_URL=https://127.0.0.1:5080
+      - FGMACHINE_URL=https://127.0.0.1:5081
+
