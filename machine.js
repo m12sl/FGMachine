@@ -16,6 +16,7 @@ var EventEmitter = require("events").EventEmitter;
 var mediator = new EventEmitter();
 
 var httpServ = ( cfg.ssl ) ? require('https') : require('http');
+var hash = require('object-hash');
 
 var url = require("url");
 var bytes = require("bytes");
@@ -45,6 +46,8 @@ var experiments = {};
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
+var rootDir = process.env.ROOT_DIR;
+
 var withDefaultOptions = function(options) {
   var result = { rejectUnauthorized: false, requestCert: false, agent: false, strictSSL: false, tunnel: false }
   for (var attrname in options) { result[attrname] = options[attrname]; }
@@ -70,10 +73,10 @@ fs.readFile("specs.json", "utf-8")
 })
 .catch(() => {
   // Otherwise create specs
+
   specs = {
     address: process.env.FGMACHINE_URL,
     local_address: process.env.FGMACHINE_LOCAL_URL,
-    //hostname: os.hostname()+':'+Math.floor(Math.random() * 101),
     hostname: os.hostname(),
     os: {
       type: os.type(),
@@ -83,7 +86,8 @@ fs.readFile("specs.json", "utf-8")
     },
     cpus: os.cpus().map((cpu) => cpu.model), // Fat arrow has implicit return
     mem: bytes(os.totalmem()),
-    gpus: []
+    gpus: [],
+    shutdown_secret: hash(Math.random())
   };
   // GPU models
   if (os.platform() === "linux") {
@@ -217,12 +221,13 @@ app.put("/projects", jsonParser, cors(cors_config), (req, res) => {
   // Insert project implementation template if new
   if (!projects[id]) {
     projects[id] = {
-      cwd: "/root/FGMachine/cloudml_optimisation/"+id,
+      //cwd: "/root/FGMachine/cloudml_optimisation/"+id,
+      cwd: path.join(rootDir, "cloudml_optimisation", id),
       command: command,
       args: args,
       options: options,
       capacity: capacity,
-      results: "/root/FGMachine/cloudml_optimisation/"+id
+      results: path.join(rootDir, "cloudml_optimisation", id)
     };
     fs.writeFile("projects.json", JSON.stringify(projects, null, "\t"));
     res.send({msg: "Project ID " + id + " template added - please adjust on " + specs.hostname});
@@ -241,7 +246,19 @@ app.get("/projects/:id/capacity", cors(cors_config), (req, res) => {
   if (capacity === 0) {
     res.status(501).send({error: "No capacity available"});
   } else {
-    res.send({capacity: capacity, address: specs.address, _id: specs._id});
+    res.send({capacity: capacity, address: specs.address, local_address: specs.local_address, _id: specs._id});
+  }
+});
+
+app.post("/stop", jsonParser, cors(cors_config), (req, res) => {
+  var secret = req.body.secret;
+  console.log("Got stop request");
+  
+  if ( specs.shutdown_secret === secret ) {
+    res.send({msg:"Shutting down"});
+    //process.exit(); 
+  } else {
+    res.status(501).send({error: "Failed to stop machine"});
   }
 });
 
@@ -250,18 +267,21 @@ app.put("/projects/:id/extrafile/:runFlag", upload.single("_file"), cors(cors_co
 
   var proId = req.params.id;
   var runFlag = req.params.runFlag;
-  var dir = "/root/FGMachine/cloudml_optimisation/"+proId+"/";
+  //var dir = "/root/FGMachine/cloudml_optimisation/"+proId+"/";
+  var dir = path.join(rootDir, "cloudml_optimisation", proId);
 
   //Check directory or create
   if (!fs.existsSync(dir)){
     fs.mkdirSync(dir);
   }
   //get file name
-  var filename = dir+req.file.originalname;
+  var filename = path.join(dir, req.file.originalname);
   //wirte to file
   fs.writeFile(filename, req.file.buffer, (err) => {
     if (err) throw err;
   });
+
+  console.log("Wrote " + filename);
 
   var message = "";
 
